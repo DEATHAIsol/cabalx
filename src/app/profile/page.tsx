@@ -1,7 +1,7 @@
 "use client";
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { ProfileSettings } from '@/components/ui/profile-settings';
 import { PublicProfile } from '@/components/ui/public-profile';
@@ -176,20 +176,26 @@ const mockRewards: Reward[] = [
   }
 ];
 
-type TabType = 'profile' | 'tasks-rewards' | 'settings';
-
-export default function ProfilePage() {
+// Profile content component that uses useSearchParams
+const ProfileContent = () => {
   const { connected } = useWallet();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') as TabType || 'profile';
   const [user, setUser] = useState<User | null>(null);
-  const [joinedCabals, setJoinedCabals] = useState<Cabal[]>([]);
-  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
-  const [isEditing, setIsEditing] = useState(false);
+  const [cabal, setCabal] = useState<Cabal | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Get initial tab from URL params
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!connected) {
@@ -197,18 +203,14 @@ export default function ProfilePage() {
       return;
     }
 
-    // Simulate API call delay
-    const loadData = async () => {
-      setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 500));
+    // Simulate loading user data
+    setTimeout(() => {
       setUser(mockUser);
-      setJoinedCabals(mockJoinedCabals);
+      setCabal(mockJoinedCabals[0]); // Assuming the first joined cabal is the current one
       setTasks(mockTasks);
       setRewards(mockRewards);
       setIsLoading(false);
-    };
-
-    loadData();
+    }, 1000);
   }, [connected, router]);
 
   const handleSaveProfile = async (updatedUser: Partial<User>) => {
@@ -218,37 +220,45 @@ export default function ProfilePage() {
     setIsEditing(false);
   };
 
-  const handleMessageUser = () => {
-    router.push('/chat');
-  };
-
   const handleCompleteTask = async (taskId: string) => {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
-    
     setTasks(prev => prev.map(task => 
       task.id === taskId 
         ? { ...task, completed: true, completedAt: new Date() }
         : task
     ));
-    
     // Update user CP
-    const task = tasks.find(t => t.id === taskId);
-    if (task && user) {
-      setUser(prev => prev ? { ...prev, cabalPoints: prev.cabalPoints + task.cpReward } : null);
-    }
+    setUser(prev => prev ? { ...prev, cabalPoints: prev.cabalPoints + 50 } : null);
   };
 
-  const currentCabal = user?.cabalId ? joinedCabals.find(c => c.id === user.cabalId) : undefined;
-  const nextPayoutTime = new Date();
-  nextPayoutTime.setHours(nextPayoutTime.getHours() + 6); // 6 hours from now
-
-  if (!connected || !user) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p>Loading your profile...</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+        <Navigation />
+        <div className="container mx-auto px-4 pt-24 pb-8">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-400"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+        <Navigation />
+        <div className="container mx-auto px-4 pt-24 pb-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white mb-4">User not found</h1>
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+            >
+              Go to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -285,7 +295,7 @@ export default function ProfilePage() {
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
               >
                 <Settings className="w-4 h-4" />
                 <span>Edit Profile</span>
@@ -294,47 +304,11 @@ export default function ProfilePage() {
           </div>
         </motion.div>
 
-        {/* Tabs */}
-        {!isEditing && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-6"
-          >
-            <div className="flex space-x-1 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-1">
-              {[
-                { id: 'profile' as TabType, label: 'Profile', icon: UserIcon },
-                { id: 'tasks-rewards' as TabType, label: 'Tasks & Rewards', icon: Award },
-                { id: 'settings' as TabType, label: 'Settings', icon: Settings }
-              ].map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-                
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-md font-medium transition-all duration-200 ${
-                      isActive
-                        ? 'bg-purple-600 text-white shadow-lg'
-                        : 'text-gray-300 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-
         {/* Content */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.1 }}
         >
           {isEditing ? (
             <ProfileSettings
@@ -343,202 +317,153 @@ export default function ProfilePage() {
               onCancel={() => setIsEditing(false)}
             />
           ) : (
-            <>
-              {activeTab === 'profile' && (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              {/* Profile Card */}
+              <div className="lg:col-span-1">
                 <PublicProfile
                   user={user}
-                  cabal={currentCabal}
-                  onMessage={handleMessageUser}
+                  cabal={cabal || undefined}
                   showWallet={true}
                 />
-              )}
+              </div>
 
-              {activeTab === 'tasks-rewards' && (
-                <div className="space-y-8">
-                  {/* Tasks Section */}
-                  <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6">
-                    <h2 className="text-xl font-bold text-white mb-4 flex items-center">
-                      <Target className="w-5 h-5 mr-2 text-purple-400" />
-                      My Tasks
-                    </h2>
-                    <p className="text-gray-400 mb-6">
-                      Complete tasks to earn Cabal Points and unlock rewards.
-                    </p>
-                    
-                    {isLoading ? (
-                      <div className="space-y-4">
-                        {[1, 2, 3].map((i) => (
-                          <div key={i} className="animate-pulse">
-                            <div className="h-20 bg-white/5 rounded-lg"></div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : tasks.length > 0 ? (
-                      <div className="space-y-4">
-                        {tasks.map((task) => (
-                          <motion.div
-                            key={task.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`p-4 rounded-lg border transition-all duration-200 ${
-                              task.completed
-                                ? 'bg-green-500/10 border-green-500/30'
-                                : 'bg-white/5 border-white/20 hover:bg-white/10'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-3">
-                                <div className="text-2xl">{task.icon}</div>
-                                <div className="flex-1">
-                                  <div className="flex items-center space-x-2">
-                                    <h3 className="font-semibold text-white">{task.title}</h3>
-                                    {task.completed && (
-                                      <CheckCircle className="w-4 h-4 text-green-400" />
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-gray-400">{task.description}</p>
-                                </div>
+              {/* Tabs Content */}
+              <div className="lg:col-span-3">
+                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6">
+                  {/* Tab Navigation */}
+                  <div className="flex space-x-1 mb-6 bg-white/5 rounded-lg p-1">
+                    {[
+                      { id: 'overview', name: 'Overview', icon: UserIcon },
+                      { id: 'tasks-rewards', name: 'Tasks & Rewards', icon: Award }
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`flex items-center space-x-2 px-4 py-2 rounded-md font-medium transition-all duration-200 ${
+                            activeTab === tab.id
+                              ? 'bg-purple-600 text-white shadow-lg'
+                              : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span>{tab.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tab Content */}
+                  <div className="min-h-[400px]">
+                    {activeTab === 'overview' && (
+                      <div className="space-y-6">
+                        <div>
+                          <h3 className="text-xl font-bold text-white mb-4">Recent Activity</h3>
+                          <div className="space-y-3">
+                            <div className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <div className="flex-1">
+                                <p className="text-white text-sm">Completed daily quest</p>
+                                <p className="text-gray-400 text-xs">2 hours ago</p>
                               </div>
-                              
-                              <div className="text-right">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <Crown className="w-4 h-4 text-purple-400" />
-                                  <span className="text-purple-400 font-semibold">+{task.cpReward} CP</span>
+                            </div>
+                            <div className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <div className="flex-1">
+                                <p className="text-white text-sm">Earned 50 CP for winning trade</p>
+                                <p className="text-gray-400 text-xs">1 day ago</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg">
+                              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                              <div className="flex-1">
+                                <p className="text-white text-sm">Joined "Degen Masters" Cabal</p>
+                                <p className="text-gray-400 text-xs">3 days ago</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'tasks-rewards' && (
+                      <div className="space-y-6">
+                        {/* Tasks Section */}
+                        <div>
+                          <h3 className="text-xl font-bold text-white mb-4">Active Tasks</h3>
+                          <div className="space-y-3">
+                            {tasks.filter(task => !task.completed).map((task) => (
+                              <div key={task.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                  <Target className="w-5 h-5 text-purple-400" />
+                                  <div>
+                                    <p className="text-white font-medium">{task.title}</p>
+                                    <p className="text-gray-400 text-sm">{task.description}</p>
+                                  </div>
                                 </div>
-                                {!task.completed && (
+                                <div className="flex items-center space-x-3">
+                                  <span className="text-yellow-400 text-sm font-medium">+{task.cpReward} CP</span>
                                   <button
                                     onClick={() => handleCompleteTask(task.id)}
-                                    className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors"
+                                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
                                   >
                                     Complete
                                   </button>
-                                )}
+                                </div>
                               </div>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-400">No tasks available right now.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Rewards Section */}
-                  <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6">
-                    <h2 className="text-xl font-bold text-white mb-4 flex items-center">
-                      <Award className="w-5 h-5 mr-2 text-yellow-400" />
-                      My Rewards
-                    </h2>
-                    
-                    {currentCabal ? (
-                      <div className="space-y-6">
-                        {/* Next Payout */}
-                        <div className="bg-white/5 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold text-white">Next Payout</h3>
-                            <div className="flex items-center space-x-2 text-yellow-400">
-                              <Clock className="w-4 h-4" />
-                              <span className="text-sm">6h 23m</span>
-                            </div>
+                            ))}
                           </div>
-                          <p className="text-gray-400 text-sm">
-                            Based on your current position in {currentCabal.name}
-                          </p>
                         </div>
 
-                        {/* Recent Payouts */}
-                        {rewards.length > 0 && (
-                          <div>
-                            <h3 className="font-semibold text-white mb-3">Recent Payouts</h3>
-                            <div className="space-y-3">
-                              {rewards.slice(0, 3).map((reward) => (
-                                <div key={reward.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                        {/* Rewards Section */}
+                        <div>
+                          <h3 className="text-xl font-bold text-white mb-4">Recent Rewards</h3>
+                          <div className="space-y-3">
+                            {rewards.slice(0, 3).map((reward) => (
+                              <div key={reward.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                  <Award className="w-5 h-5 text-yellow-400" />
                                   <div>
                                     <p className="text-white font-medium">{reward.cabalName}</p>
-                                    <p className="text-sm text-gray-400">
-                                      {reward.distributedAt.toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-yellow-400 font-semibold">+{reward.tokenAmount} SOL</p>
-                                    <p className="text-sm text-gray-400">Rank #{reward.rank}</p>
+                                    <p className="text-gray-400 text-sm">Rank #{reward.rank}</p>
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Cabal Stats */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-white/5 rounded-lg p-4 text-center">
-                            <p className="text-2xl font-bold text-purple-400">{currentCabal.totalCabalPoints.toLocaleString()}</p>
-                            <p className="text-sm text-gray-400">Total CP</p>
-                          </div>
-                          <div className="bg-white/5 rounded-lg p-4 text-center">
-                            <p className="text-2xl font-bold text-blue-400">{currentCabal.memberCount}</p>
-                            <p className="text-sm text-gray-400">Members</p>
+                                <div className="text-right">
+                                  <p className="text-white font-medium">+{reward.tokenAmount} SOL</p>
+                                  <p className="text-gray-400 text-sm">{reward.distributedAt.toLocaleDateString()}</p>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <Award className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-400 mb-4">Join a Cabal to start earning rewards.</p>
-                        <button
-                          onClick={() => router.push('/cabal')}
-                          className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                        >
-                          Browse Cabals
-                        </button>
                       </div>
                     )}
                   </div>
                 </div>
-              )}
-
-              {activeTab === 'settings' && (
-                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6">
-                  <h2 className="text-xl font-bold text-white mb-4">Account Settings</h2>
-                  <p className="text-gray-400 mb-6">
-                    Manage your account preferences and privacy settings.
-                  </p>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
-                      <div>
-                        <h3 className="text-white font-medium">Direct Messages</h3>
-                        <p className="text-sm text-gray-400">
-                          {user.dmPrefs?.allowFrom === 'everyone' && 'Everyone can message you'}
-                          {user.dmPrefs?.allowFrom === 'cabal' && 'Only cabal members can message you'}
-                          {user.dmPrefs?.allowFrom === 'nobody' && 'Nobody can message you'}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setIsEditing(true)}
-                        className="text-purple-400 hover:text-purple-300 text-sm"
-                      >
-                        Change
-                      </button>
-                    </div>
-                    
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
-                      <div>
-                        <h3 className="text-white font-medium">Profile Visibility</h3>
-                        <p className="text-sm text-gray-400">Your profile is public</p>
-                      </div>
-                      <div className="text-green-400 text-sm">Public</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
+              </div>
+            </div>
           )}
         </motion.div>
       </div>
     </div>
+  );
+};
+
+// Main page component with Suspense
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+        <Navigation />
+        <div className="container mx-auto px-4 pt-24 pb-8">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-400"></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <ProfileContent />
+    </Suspense>
   );
 } 

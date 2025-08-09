@@ -54,7 +54,7 @@ const mockNotifications: Notification[] = [
 ];
 
 export const Navigation = () => {
-  const { connected, publicKey, disconnect } = useWallet();
+  const { connected, disconnect } = useWallet();
   const router = useRouter();
   const pathname = usePathname();
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
