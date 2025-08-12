@@ -158,17 +158,17 @@ export default function LeaderboardPage() {
 
   if (!connected) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p>Loading leaderboard...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">Connect Your Wallet</h2>
+          <p className="text-gray-400">Please connect your wallet to view the leaderboard.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+    <div className="min-h-screen">
       <Navigation />
       <div className="container mx-auto px-4 pt-24 pb-8">
         {/* Header */}

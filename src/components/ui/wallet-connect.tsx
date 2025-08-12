@@ -3,9 +3,28 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 
 export const WalletConnect = ({ className }: { className?: string }) => {
   const { connected, wallet } = useWallet();
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className={cn("flex flex-col items-center space-y-4", className)}>
+        <div className="relative">
+          <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold px-8 py-4 rounded-lg shadow-lg">
+            Loading...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div

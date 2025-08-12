@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540">
+  <defs>
+    <!-- ==== Theme (edit these) ==== -->
+    <style>
+      :root{
+        --blue-light:#2C76AF;   /* inner highlight blue */
+        --blue-mid:#226AA6;     /* mid tile blue */
+        --blue-dark:#1F5A94;    /* deep tile blue */
+        --seam-dark:rgba(0,0,0,.25);
+        --seam-soft:rgba(0,0,0,.10);
+        --shine:rgba(255,255,255,.22);
+      }
+    </style>
+
+    <!-- Soft “pillow” gradients for light/dark tiles -->
+    <radialGradient id="tileLight" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="var(--blue-light)"></stop>
+      <stop offset="60%" stop-color="var(--blue-mid)"></stop>
+      <stop offset="100%" stop-color="var(--blue-mid)"></stop>
+    </radialGradient>
+    <radialGradient id="tileDark" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#245E98"></stop>
+      <stop offset="60%" stop-color="var(--blue-dark)"></stop>
+      <stop offset="100%" stop-color="var(--blue-dark)"></stop>
+    </radialGradient>
+
+    <!-- Bevel overlays (top-left shine, bottom-right shade) -->
+    <linearGradient id="bevelTL" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="var(--shine)"></stop>
+      <stop offset="45%" stop-color="rgba(255,255,255,0)"></stop>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"></stop>
+    </linearGradient>
+    <linearGradient id="bevelBR" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="rgba(0,0,0,.28)"></stop>
+      <stop offset="55%" stop-color="rgba(0,0,0,0)"></stop>
+      <stop offset="100%" stop-color="rgba(0,0,0,0)"></stop>
+    </linearGradient>
+
+    <!-- One seamless pattern tile (120×120) -->
+    <pattern id="quiltTile" width="120" height="120" patternUnits="userSpaceOnUse">
+      <!-- Base fill so there are zero white gaps -->
+      <rect width="120" height="120" fill="var(--blue-mid)"></rect>
+
+      <!-- A diamond (rotated square) centered at (cx,cy) with radius r -->
+      <g id="diamond">
+        <polygon points="0,-54 54,0 0,54 -54,0"></polygon>
+        <!-- inner ridge for “puffed” look -->
+        <polygon points="0,-44 44,0 0,44 -44,0" fill="rgba(0,0,0,.06)"></polygon>
+        <!-- bevel overlays -->
+        <polygon points="0,-54 54,0 0,54 -54,0" fill="url(#bevelTL)" opacity=".7"></polygon>
+        <polygon points="0,-54 54,0 0,54 -54,0" fill="url(#bevelBR)" opacity=".7"></polygon>
+      </g>
+
+      <!-- Draw alternating diamonds so edges TOUCH and tile seamlessly -->
+      <!-- Center light tile -->
+      <g transform="translate(60,60)">
+        <use href="#diamond" fill="url(#tileLight)"></use>
+      </g>
+
+      <!-- Surrounding dark tiles (these straddle the tile edges for a perfect repeat) -->
+      <g transform="translate(0,0)">
+        <g transform="translate(0,0)"><use href="#diamond" fill="url(#tileDark)"></use></g>
+        <g transform="translate(120,0)"><use href="#diamond" fill="url(#tileDark)"></use></g>
+        <g transform="translate(0,120)"><use href="#diamond" fill="url(#tileDark)"></use></g>
+        <g transform="translate(120,120)"><use href="#diamond" fill="url(#tileDark)"></use></g>
+      </g>
+
+      <!-- Seam/shadow lines that continue across tiles -->
+      <path d="M0,60 L60,120 M60,0 L120,60" stroke="var(--seam-dark)" stroke-width="1" opacity=".55"></path>
+      <path d="M-60,0 L0,60 M60,120 L180,240" stroke="var(--seam-soft)" stroke-width="1" opacity=".45"></path>
+    </pattern>
+  </defs>
+
+  <!-- Use the seamless pattern as a background -->
+  <rect width="100%" height="100%" fill="url(#quiltTile)"></rect>
+</svg>

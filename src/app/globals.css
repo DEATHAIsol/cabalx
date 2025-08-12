@@ -118,5 +118,15 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: url('/background5.jpg');
+    background-size: auto;
+    background-repeat: repeat;
+    background-position: center;
+  }
+  
+  /* Override background for chat page */
+  body.chat-page {
+    background-image: none;
+    background-color: #111827; /* Dark background for chat */
   }
 }

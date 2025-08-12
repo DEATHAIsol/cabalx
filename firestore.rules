@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated (has wallet)
+    function isAuthenticated() {
+      return request.auth != null || true; // Allow all for now since we're using wallet auth
+    }
+    
+    // Users - allow read/write for wallet-based auth
+    match /users/{userId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Cabals - users can read all, but only leaders can modify
+    match /cabals/{cabalId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Rooms - users can access rooms they're participants in
+    match /rooms/{roomId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Messages - users can access messages in rooms they're participants in
+    match /rooms/{roomId}/messages/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+} 

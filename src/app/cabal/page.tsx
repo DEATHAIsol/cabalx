@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Navigation } from '@/components/ui/navigation';
-import { Modal } from '@/components/ui/modal';
+import { CreateCabalModal } from '@/components/cabal/CreateCabalModal';
 import { formatNumber } from '@/lib/utils';
 import { Cabal, User } from '@/types';
 import { 
@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Plus
 } from 'lucide-react';
+import { firebaseApi } from '@/lib/firebase-api';
 
 // Mock data
 const mockCabals: Cabal[] = [
@@ -21,13 +22,13 @@ const mockCabals: Cabal[] = [
     description: 'Elite traders who hunt the biggest gains',
     minCabalPoints: 2000,
     icon: '🔥',
-    members: ['user1', 'user2', 'user3'],
+    leaderWallet: 'user1',
+    leaderUserId: 'user1',
     totalCabalPoints: 15420,
-    leader: 'user1',
     memberCount: 3,
     isFull: false,
     createdAt: new Date('2024-01-01'),
-    createdBy: 'user1'
+    updatedAt: new Date('2024-01-01')
   },
   {
     id: '2',
@@ -35,13 +36,13 @@ const mockCabals: Cabal[] = [
     description: 'Wisdom and strategy in Solana trading',
     minCabalPoints: 1500,
     icon: '🧙‍♂️',
-    members: ['user4', 'user5', 'user6'],
+    leaderWallet: 'user4',
+    leaderUserId: 'user4',
     totalCabalPoints: 12340,
-    leader: 'user4',
     memberCount: 3,
     isFull: false,
     createdAt: new Date('2024-01-15'),
-    createdBy: 'user4'
+    updatedAt: new Date('2024-01-15')
   },
   {
     id: '3',
@@ -49,13 +50,13 @@ const mockCabals: Cabal[] = [
     description: 'Kings of the meme coin game',
     minCabalPoints: 3000,
     icon: '👑',
-    members: Array.from({ length: 25 }, (_, i) => `user${i + 7}`),
+    leaderWallet: 'user6',
+    leaderUserId: 'user6',
     totalCabalPoints: 8900,
-    leader: 'user6',
     memberCount: 25,
     isFull: true,
     createdAt: new Date('2024-02-01'),
-    createdBy: 'user6'
+    updatedAt: new Date('2024-02-01')
   }
 ];
 
@@ -89,8 +90,60 @@ export default function CabalPage() {
       return;
     }
 
-    setCabals(mockCabals);
-    setUser(mockUser);
+    const loadData = async () => {
+      try {
+        // Load cabals from Firebase
+        const cabalsData = await firebaseApi.getCabals();
+        console.log('Loaded cabals from Firebase:', cabalsData);
+        
+        // Filter out empty cabals (they should be automatically deleted, but just in case)
+        const nonEmptyCabals = cabalsData.filter(cabal => cabal.memberCount > 0);
+        setCabals(nonEmptyCabals);
+        
+        // For now, create a test user that's not in any cabal
+        // In real implementation, this would come from Firebase user data
+        const testUser = {
+          id: 'test-user',
+          walletAddress: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+          cabalPoints: 2847,
+          totalPnL: 156.7,
+          winRate: 68.5,
+          totalTrades: 127,
+          winningTrades: 87,
+          badges: [],
+          cabalId: undefined, // Not in any cabal
+          isCabalLeader: false,
+          createdAt: new Date('2024-01-01'),
+          lastActive: new Date()
+        };
+        
+        setUser(testUser);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        // If no cabals exist yet, show empty state
+        setCabals([]);
+        
+        // Create a test user that's not in any cabal
+        const testUser = {
+          id: 'test-user',
+          walletAddress: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
+          cabalPoints: 2847,
+          totalPnL: 156.7,
+          winRate: 68.5,
+          totalTrades: 127,
+          winningTrades: 87,
+          badges: [],
+          cabalId: undefined, // Not in any cabal
+          isCabalLeader: false,
+          createdAt: new Date('2024-01-01'),
+          lastActive: new Date()
+        };
+        
+        setUser(testUser);
+      }
+    };
+
+    loadData();
   }, [connected, router]);
 
   const filteredCabals = cabals.filter(cabal => {
@@ -103,8 +156,8 @@ export default function CabalPage() {
   const canJoinCabal = (cabal: Cabal) => {
     if (!user) return false;
     
-    // User must not be in any cabal
-    if (user.cabalId) return false;
+    // User must not be in any cabal (check for truthy values)
+    if (user.cabalId && user.cabalId !== undefined && user.cabalId !== null) return false;
     
     // User must meet minimum CP requirement
     if (user.cabalPoints < cabal.minCabalPoints) return false;
@@ -123,84 +176,106 @@ export default function CabalPage() {
     return user?.isCabalLeader && user?.cabalId === cabal.id;
   };
 
-  const handleCreateCabal = (formData: FormData) => {
-    const name = formData.get('name') as string;
-    const description = formData.get('description') as string;
-    const minPoints = parseInt(formData.get('minPoints') as string);
-    const icon = formData.get('icon') as string;
+  const handleCreateCabal = async (cabalId: string) => {
+    if (!user || !connected) return;
 
-    const newCabal: Cabal = {
-      id: Date.now().toString(),
-      name,
-      description,
-      minCabalPoints: minPoints,
-      icon,
-      members: [user!.id],
-      totalCabalPoints: user!.cabalPoints,
-      leader: user!.walletAddress,
-      memberCount: 1,
-      isFull: false,
-      createdAt: new Date(),
-      createdBy: user!.id
-    };
-
-    setCabals([newCabal, ...cabals]);
-    setUser({ ...user!, cabalId: newCabal.id, isCabalLeader: true });
-    setIsCreateModalOpen(false);
+    try {
+      // Refresh cabals list
+      const updatedCabals = await firebaseApi.getCabals();
+      setCabals(updatedCabals);
+      
+      // Update user state
+      setUser({ ...user, cabalId, isCabalLeader: true });
+      
+      // Close modal
+      setIsCreateModalOpen(false);
+      
+      // Redirect to cabal page
+      router.push(`/cabal/${cabalId}`);
+    } catch (error) {
+      console.error('Error handling cabal creation:', error);
+      // TODO: Add error handling UI
+    }
   };
 
-  const handleJoinCabal = (cabalId: string) => {
-    if (!user) return;
-    
-    setCabals(cabals.map(cabal => 
-      cabal.id === cabalId 
-        ? { 
-            ...cabal, 
-            members: [...cabal.members, user.id],
-            memberCount: cabal.memberCount + 1,
-            isFull: cabal.memberCount + 1 >= 25
-          }
-        : cabal
-    ));
-    
-    setUser({ ...user, cabalId });
-  };
-
-  const handleLeaveCabal = () => {
+  const handleLeaveCurrentCabal = async () => {
     if (!user?.cabalId) return;
     
-    setCabals(cabals.map(cabal => 
-      cabal.id === user.cabalId 
-        ? { 
-            ...cabal, 
-            members: cabal.members.filter(memberId => memberId !== user.id),
-            memberCount: cabal.memberCount - 1,
-            isFull: false
-          }
-        : cabal
-    ));
-    
-    setUser({ ...user, cabalId: undefined, isCabalLeader: false });
+    try {
+      await firebaseApi.leaveCabal(user.cabalId, user.walletAddress);
+      
+      // Refresh cabals list
+      const updatedCabals = await firebaseApi.getCabals();
+      setCabals(updatedCabals);
+      
+      // Update user state
+      setUser({ ...user, cabalId: undefined, isCabalLeader: false });
+    } catch (error) {
+      console.error('Error leaving current cabal:', error);
+      // TODO: Add error handling UI
+    }
   };
 
-  const handleKickMember = (memberId: string) => {
+  const handleJoinCabal = async (cabalId: string) => {
+    if (!user) return;
+    
+    // If user is already in a cabal, leave it first
+    if (user.cabalId && user.cabalId !== cabalId) {
+      await handleLeaveCurrentCabal();
+    }
+    
+    try {
+      await firebaseApi.joinCabal(cabalId, user.walletAddress);
+      
+      // Refresh cabals list
+      const updatedCabals = await firebaseApi.getCabals();
+      setCabals(updatedCabals);
+      
+      // Update user state
+      setUser({ ...user, cabalId });
+    } catch (error) {
+      console.error('Error joining cabal:', error);
+      // TODO: Add error handling UI
+    }
+  };
+
+  const handleLeaveCabal = async () => {
+    if (!user?.cabalId) return;
+    
+    try {
+      await firebaseApi.leaveCabal(user.cabalId, user.walletAddress);
+      
+      // Refresh cabals list
+      const updatedCabals = await firebaseApi.getCabals();
+      setCabals(updatedCabals);
+      
+      // Update user state
+      setUser({ ...user, cabalId: undefined, isCabalLeader: false });
+    } catch (error) {
+      console.error('Error leaving cabal:', error);
+      // TODO: Add error handling UI
+    }
+  };
+
+  const handleKickMember = async (memberId: string) => {
     if (!user?.cabalId || !user?.isCabalLeader) return;
     
-    setCabals(cabals.map(cabal => 
-      cabal.id === user.cabalId 
-        ? { 
-            ...cabal, 
-            members: cabal.members.filter(id => id !== memberId),
-            memberCount: cabal.memberCount - 1,
-            isFull: false
-          }
-        : cabal
-    ));
+    try {
+      // TODO: Implement kick member functionality in Firebase API
+      console.log('Kicking member:', memberId, 'from cabal:', user.cabalId);
+      
+      // Refresh cabals list
+      const updatedCabals = await firebaseApi.getCabals();
+      setCabals(updatedCabals);
+    } catch (error) {
+      console.error('Error kicking member:', error);
+      // TODO: Add error handling UI
+    }
   };
 
   if (!connected || !user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-white text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
           <p>Loading cabals...</p>
@@ -210,7 +285,7 @@ export default function CabalPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
+    <div className="min-h-screen">
       <Navigation />
       <div className="container mx-auto px-4 pt-24 pb-8">
         {/* Header */}
@@ -266,14 +341,52 @@ export default function CabalPage() {
 
         {/* Cabals Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCabals.map((cabal, index) => (
-            <motion.div
-              key={cabal.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 hover:bg-white/15 transition-all duration-300"
-            >
+          {filteredCabals.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <div className="bg-gray-800/50 rounded-lg p-8">
+                <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-2">No Cabals Found</h3>
+                <p className="text-gray-400 mb-6">
+                  {cabals.length === 0 
+                    ? "No cabals exist yet. Be the first to create one!"
+                    : "No cabals match your search criteria."
+                  }
+                </p>
+                {cabals.length === 0 && (
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setIsCreateModalOpen(true)}
+                      className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-200"
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span>Create First Cabal</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await firebaseApi.createTestData();
+                          // Reload the page to show the new data
+                          window.location.reload();
+                        } catch (error) {
+                          console.error('Error creating test data:', error);
+                        }
+                      }}
+                      className="inline-flex items-center space-x-2 px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-all duration-200"
+                    >
+                      <span>Create Test Data</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            filteredCabals.map((cabal) => (
+              <motion.div
+                key={cabal.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-6 border border-gray-700/50 hover:border-purple-500/50 transition-all duration-300"
+              >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
                   <div className="text-3xl">{cabal.icon}</div>
@@ -340,12 +453,12 @@ export default function CabalPage() {
                 >
                   Join Cabal
                 </button>
-              ) : user?.cabalId ? (
+              ) : user?.cabalId && user.cabalId !== cabal.id ? (
                 <button
-                  disabled
-                  className="w-full py-3 bg-gray-500/20 text-gray-400 font-semibold rounded-lg cursor-not-allowed"
+                  onClick={handleLeaveCurrentCabal}
+                  className="w-full py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold rounded-lg transition-colors"
                 >
-                  Leave Current Cabal First
+                  Leave Current Cabal
                 </button>
               ) : cabal.isFull ? (
                 <button
@@ -370,87 +483,17 @@ export default function CabalPage() {
                 </button>
               )}
             </motion.div>
-          ))}
+          ))
+        )}
         </div>
 
         {/* Create Cabal Modal */}
-        <Modal
+        <CreateCabalModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          title="Create New Cabal"
-        >
-          <form action={handleCreateCabal} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Cabal Name
-              </label>
-              <input
-                type="text"
-                name="name"
-                required
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
-                placeholder="Enter cabal name"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Description
-              </label>
-              <textarea
-                name="description"
-                required
-                rows={3}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
-                placeholder="Describe your cabal"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Minimum Cabal Points
-              </label>
-              <input
-                type="number"
-                name="minPoints"
-                required
-                min="0"
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
-                placeholder="0"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Icon (emoji)
-              </label>
-              <input
-                type="text"
-                name="icon"
-                required
-                maxLength={2}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 text-center text-2xl"
-                placeholder="🔥"
-              />
-            </div>
-            
-            <div className="flex space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(false)}
-                className="flex-1 py-3 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 font-semibold rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-200"
-              >
-                Create Cabal
-              </button>
-            </div>
-          </form>
-        </Modal>
+          onSuccess={handleCreateCabal}
+          currentUser={user}
+        />
       </div>
     </div>
   );

@@ -1,3 +1,5 @@
+// Enhanced interfaces for messaging privacy and access control
+
 export interface User {
   id: string
   walletAddress: string
@@ -26,15 +28,54 @@ export interface Cabal {
   description: string
   minCabalPoints: number
   icon: string
-  members: string[]
-  totalCabalPoints: number
-  leader: string
+  leaderWallet: string
+  leaderUserId?: string
   memberCount: number
+  totalCabalPoints: number
   isFull: boolean
   createdAt: Date
-  createdBy: string
+  updatedAt: Date
 }
 
+export interface CabalMember {
+  cabalId: string
+  userId: string
+  joinedAt: Date
+}
+
+export interface Conversation {
+  id: string
+  type: 'dm' | 'cabal' | 'world'
+  cabalId?: string
+  createdAt: Date
+  cabalName?: string
+  cabalIcon?: string
+  dmParticipant?: User
+}
+
+export interface ConversationParticipant {
+  conversationId: string
+  userId: string
+  joinedAt: Date
+}
+
+export interface Message {
+  id: string
+  conversationId: string
+  cabalId?: string
+  senderId: string
+  body: string
+  createdAt: Date
+  softDeleted: boolean
+  sender?: {
+    id: string
+    username?: string
+    displayName?: string
+    profileImageUrl?: string
+  }
+}
+
+// Legacy interfaces for backward compatibility
 export interface Trade {
   id: string
   userId: string
@@ -76,36 +117,17 @@ export interface ChatMessage {
   timestamp: Date
 }
 
-// New interfaces for the messaging system
-export interface Message {
+export interface Notification {
   id: string
-  type: 'dm' | 'cabal' | 'world'
-  roomKey: string
-  fromUserId: string
-  toUserId?: string
-  cabalId?: string
-  text: string
-  attachmentUrl?: string
-  createdAt: Date
-  softDeleted?: boolean
+  type: 'info' | 'success' | 'warning' | 'error'
+  title: string
+  message: string
+  data?: Record<string, unknown>
+  timestamp: Date
+  read: boolean
 }
 
-export interface Conversation {
-  id: string
-  roomKey: string
-  type: 'dm' | 'cabal' | 'world'
-  participants: string[]
-  lastMessageAt: Date
-  lastMessageText?: string
-  lastMessageFrom?: string
-  unreadBy: Array<{
-    userId: string
-    count: number
-  }>
-  pinnedBy: string[]
-  createdAt: Date
-}
-
+// New interfaces for enhanced messaging
 export interface ChatRoom {
   id: string
   type: 'dm' | 'cabal' | 'world'
@@ -116,8 +138,38 @@ export interface ChatRoom {
   unreadCount: number
   isPinned: boolean
   isOnline?: boolean
+  isPrivate?: boolean
+  accessLevel?: 'public' | 'cabal' | 'private'
 }
 
+// API response types
+export interface StartDMResponse {
+  conversation: Conversation
+  success: boolean
+  error?: string
+}
+
+export interface CabalRoomResponse {
+  conversationId: string
+  success: boolean
+  error?: string
+}
+
+export interface PostMessageResponse {
+  message: Message
+  success: boolean
+  error?: string
+}
+
+// Real-time channel types
+export interface RealtimeChannel {
+  id: string
+  type: 'dm' | 'cabal' | 'world'
+  name: string
+  accessLevel: 'public' | 'cabal' | 'private'
+}
+
+// Task and Reward interfaces (keeping for backward compatibility)
 export interface Task {
   id: string
   title: string
