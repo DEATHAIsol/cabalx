@@ -10,17 +10,17 @@ import {
   User,
   Crown,
   LogOut,
-  BarChart3,
-  MessageCircle
+  MessageCircle,
+  Sword
 } from 'lucide-react';
 import { NotificationBell, Notification } from './notification';
 import { useState } from 'react';
 
 const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: Home },
-  { name: 'Analytics', path: '/analytics', icon: BarChart3 },
   { name: 'Chat', path: '/chat', icon: MessageCircle },
   { name: 'Cabals', path: '/cabal', icon: Users },
+  { name: 'Cabal Wars', path: '/cabal-wars', icon: Sword },
   { name: 'Leaderboard', path: '/leaderboard', icon: Trophy },
   { name: 'Profile', path: '/profile', icon: User },
 ];

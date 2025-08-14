@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { StatsCard } from '@/components/ui/stats-card';
 import { formatAddress, formatNumber, formatTimeAgo } from '@/lib/utils';
 import { User } from '@/types';
+import { useMetrics } from '@/hooks/useMetrics';
 import { 
   Crown, 
   Trophy, 
@@ -16,19 +17,21 @@ import {
   Users,
   ArrowRight,
   Zap,
-  Clock
+  Clock,
+  MessageCircle,
+  RefreshCw
 } from 'lucide-react';
 import { Navigation } from '@/components/ui/navigation';
 
-// Mock data for development
-const mockUser: User = {
+// Mock user data (for non-metrics fields)
+const createMockUser = (walletAddress: string, metrics: any): User => ({
   id: '1',
-  walletAddress: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-  cabalPoints: 2847,
-  totalPnL: 156.7,
-  winRate: 68.5,
-  totalTrades: 127,
-  winningTrades: 87,
+  walletAddress,
+  cabalPoints: metrics?.cabalPoints || 0,
+  totalPnL: metrics?.totalPnl || 0,
+  winRate: metrics?.winRate || 0,
+  totalTrades: metrics?.totalTrades || 0,
+  winningTrades: Math.round((metrics?.winRate || 0) * (metrics?.totalTrades || 0) / 100),
   badges: [
     {
       id: '1',
@@ -56,69 +59,13 @@ const mockUser: User = {
   isCabalLeader: true,
   createdAt: new Date('2024-01-01'),
   lastActive: new Date()
-};
-
-// Mock trading feed data
-const mockTradingFeed = [
-  {
-    id: '1',
-    userWallet: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-    userName: '9WzD...AWWM',
-    tokenSymbol: 'BONK',
-    tokenName: 'Bonk',
-    action: 'buy',
-    amount: 1000000,
-    price: 0.00000123,
-    pnl: 0,
-    timestamp: new Date(Date.now() - 300000), // 5 minutes ago
-    cabalName: 'Degen Masters'
-  },
-  {
-    id: '2',
-    userWallet: '2WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-    userName: '2WzD...AWWM',
-    tokenSymbol: 'WIF',
-    tokenName: 'dogwifhat',
-    action: 'sell',
-    amount: 500,
-    price: 2.45,
-    pnl: 125.50,
-    timestamp: new Date(Date.now() - 600000), // 10 minutes ago
-    cabalName: 'Solana Sages'
-  },
-  {
-    id: '3',
-    userWallet: '3WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-    userName: '3WzD...AWWM',
-    tokenSymbol: 'POPCAT',
-    tokenName: 'Popcat',
-    action: 'buy',
-    amount: 50000,
-    price: 0.00089,
-    pnl: 0,
-    timestamp: new Date(Date.now() - 900000), // 15 minutes ago
-    cabalName: 'Meme Lords'
-  },
-  {
-    id: '4',
-    userWallet: '4WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-    userName: '4WzD...AWWM',
-    tokenSymbol: 'BOME',
-    tokenName: 'Book of Meme',
-    action: 'sell',
-    amount: 10000,
-    price: 0.0123,
-    pnl: -45.20,
-    timestamp: new Date(Date.now() - 1200000), // 20 minutes ago
-    cabalName: 'Degen Masters'
-  }
-];
+});
 
 export default function DashboardPage() {
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
   const router = useRouter();
+  const { metrics, loading, error, refetch } = useMetrics();
   const [user, setUser] = useState<User | null>(null);
-  const [tradingFeed] = useState(mockTradingFeed);
 
   useEffect(() => {
     if (!connected) {
@@ -126,17 +73,60 @@ export default function DashboardPage() {
       return;
     }
 
-    // In a real app, this would fetch user data from the backend
-    // For now, we'll use mock data
-    setUser(mockUser);
-  }, [connected, router]);
+    if (publicKey && metrics) {
+      const mockUser = createMockUser(publicKey.toString(), metrics);
+      setUser(mockUser);
+    }
+  }, [connected, router, publicKey, metrics]);
 
-  if (!connected || !user) {
+  if (!connected) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white mb-4">Connect Your Wallet</h2>
           <p className="text-gray-400">Please connect your wallet to access the dashboard.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <Navigation />
+        <div className="container mx-auto px-4 pt-24 pb-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 text-purple-400 animate-spin mx-auto mb-4" />
+              <h2 className="text-xl font-bold text-white mb-2">Loading Your Metrics</h2>
+              <p className="text-gray-400">Fetching trading data from SolanaTracker...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen">
+        <Navigation />
+        <div className="container mx-auto px-4 pt-24 pb-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-white mb-2">No Data Available</h2>
+              <p className="text-gray-400 mb-4">Unable to load your trading metrics.</p>
+              {error && (
+                <p className="text-red-400 text-sm mb-4">{error}</p>
+              )}
+              <button
+                onClick={refetch}
+                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -157,9 +147,14 @@ export default function DashboardPage() {
               <h1 className="text-4xl font-bold text-white mb-2">
                 Welcome back, {formatAddress(user.walletAddress)}
               </h1>
-              <p className="text-gray-300">
+              <p className="text-gray-300 mb-1">
                 Your trading performance and Cabal Points
               </p>
+              {metrics && (
+                <p className="text-xs text-gray-500">
+                  Last updated: {formatTimeAgo(new Date(metrics.updatedAt))} • Data from {metrics.sourceWindow}
+                </p>
+              )}
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">
@@ -169,6 +164,14 @@ export default function DashboardPage() {
               <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center">
                 <Crown className="w-6 h-6 text-purple-400" />
               </div>
+              <button
+                onClick={refetch}
+                disabled={loading}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50"
+                title="Refresh metrics"
+              >
+                <RefreshCw className={`w-5 h-5 text-purple-400 ${loading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
           </div>
         </motion.div>
@@ -203,7 +206,7 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Badges Section */}
+        {/* Navigation Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -211,102 +214,46 @@ export default function DashboardPage() {
           className="mb-8"
         >
           <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
-            <Trophy className="w-6 h-6 mr-2 text-yellow-400" />
-            Your Badges
+            <Zap className="w-6 h-6 mr-2 text-yellow-400" />
+            Quick Navigation
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {user.badges.map((badge) => (
-              <div
-                key={badge.id}
-                className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4"
-              >
-                <div className="flex items-center mb-2">
-                  <span className="text-white font-bold text-lg mr-2">{badge.icon}</span>
-                  <span className="text-white font-bold text-lg">{badge.name}</span>
-                </div>
-                <p className="text-gray-300 text-sm">{badge.description}</p>
-                <p className="text-gray-400 text-xs mt-2">Rarity: {badge.rarity}</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Trading Feed Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="mb-8"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-white flex items-center">
-              <Activity className="w-6 h-6 mr-2 text-green-400" />
-              Live Trading Feed
-            </h2>
             <button
-              onClick={() => router.push('/trading-feed')}
-              className="flex items-center text-purple-400 hover:text-purple-300 transition-colors"
+              onClick={() => router.push('/cabal')}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 hover:bg-white/15 transition-all duration-300 group"
             >
-              <span className="mr-1">View All</span>
-              <ArrowRight className="w-4 h-4" />
+              <div className="flex items-center justify-between mb-3">
+                <Users className="w-8 h-8 text-purple-400" />
+                <ArrowRight className="w-5 h-5 text-purple-400 group-hover:translate-x-1 transition-transform" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Join Cabals</h3>
+              <p className="text-gray-300 text-sm">Discover and join exclusive trading communities</p>
             </button>
-          </div>
-          
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-4">
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {tradingFeed.map((trade) => (
-                <div
-                  key={trade.id}
-                  className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      trade.action === 'buy' ? 'bg-green-500/20' : 'bg-red-500/20'
-                    }`}>
-                      {trade.action === 'buy' ? (
-                        <TrendingUp className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <TrendingDown className="w-4 h-4 text-red-400" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-white font-medium">{trade.tokenSymbol}</span>
-                        <span className="text-xs text-gray-400">{trade.tokenName}</span>
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          trade.action === 'buy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                        }`}>
-                          {trade.action.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {trade.userName} • {trade.cabalName}
-                      </div>
-                    </div>
+
+            <button
+              onClick={() => router.push('/chat')}
+              className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 hover:bg-white/15 transition-all duration-300 group"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <MessageCircle className="w-8 h-8 text-blue-400" />
+                <ArrowRight className="w-5 h-5 text-blue-400 group-hover:translate-x-1 transition-transform" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Chat</h3>
+              <p className="text-gray-300 text-sm">Connect with traders and cabal members</p>
+            </button>
+
+            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-orange-500/10"></div>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-8 h-8 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-lg">⚔️</span>
                   </div>
-                  
-                  <div className="text-right">
-                    <div className="text-white font-medium">
-                      {trade.amount.toLocaleString()} {trade.tokenSymbol}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      ${trade.price.toFixed(6)}
-                    </div>
-                    {trade.pnl !== 0 && (
-                      <div className={`text-xs ${
-                        trade.pnl > 0 ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="text-xs text-gray-400 flex items-center">
-                    <Clock className="w-3 h-3 mr-1" />
-                    {formatTimeAgo(trade.timestamp)}
-                  </div>
+                  <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded-full">Coming Soon</span>
                 </div>
-              ))}
+                <h3 className="text-lg font-bold text-white mb-2">Cabal Wars</h3>
+                <p className="text-gray-300 text-sm">Battle other cabals for prize pools</p>
+              </div>
             </div>
           </div>
         </motion.div>
